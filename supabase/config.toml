@@ -1,0 +1,10 @@
+project_id = "daily-check-in"
+
+[functions.reminders]
+# The handler validates the bearer token through Supabase Auth. This also supports
+# projects using the newer signing keys instead of the gateway legacy verifier.
+verify_jwt = false
+
+[functions.dispatch-reminders]
+# Cron uses its own high-entropy secret, checked by the handler.
+verify_jwt = false

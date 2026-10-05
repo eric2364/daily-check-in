@@ -1,0 +1,8 @@
+{
+  "nodeModulesDir": "auto",
+  "lock": false,
+  "tasks": {
+    "check": "deno check functions/reminders/index.ts functions/dispatch-reminders/index.ts",
+    "test": "deno test --allow-env=ECE_KEYLOG functions/_shared/reminders_test.ts"
+  }
+}
