@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.0.2 — 2026-10-06
+
+Use the native iPhone share sheet for CSV/JSON exports, including Save to Files.
+
 ## 1.0.1 — 2026-10-06
 
 Added previous/next day controls and more robust date input handling.

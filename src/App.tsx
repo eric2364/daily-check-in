@@ -75,12 +75,27 @@ function dateLabel(date: string, short = false) {
 function number(value: number | null, suffix = "") {
   return value === null ? "—" : `${value.toFixed(1)}${suffix}`;
 }
-function download(content: string, name: string, type: string) {
-  const url = URL.createObjectURL(new Blob([content], { type }));
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = name;
-  a.click();
+async function download(content: string, name: string, type: string) {
+  const file = new File([content], name, { type });
+  // iPhone's native share sheet offers Save to Files and spreadsheet apps.
+  if (
+    /iPhone|iPad|iPod/.test(navigator.userAgent) &&
+    navigator.canShare?.({ files: [file] })
+  ) {
+    try {
+      await navigator.share({ files: [file] });
+      return;
+    } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") return;
+    }
+  }
+  const url = URL.createObjectURL(file);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = name;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
   setTimeout(() => URL.revokeObjectURL(url), 10000);
 }
 export default function App() {
@@ -897,7 +912,7 @@ export default function App() {
         <footer className="page-footer">
           <Feather size={14} />
           <span>Less tracking. More awareness.</span>
-          <span className="footer-version">v1.0.1</span>
+          <span className="footer-version">v1.0.2</span>
         </footer>
       </main>
       <nav className="mobile-nav">
