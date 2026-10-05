@@ -1218,3 +1218,20 @@ h1 {
     transition: none !important;
   }
 }
+
+.date-arrow {
+  border: 0;
+  background: #f7f9f4;
+  color: #647b6b;
+  padding: 5px;
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.date-row {
+  gap: 6px;
+}
+.date-row input {
+  max-width: 140px;
+}

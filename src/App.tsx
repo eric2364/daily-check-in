@@ -7,6 +7,7 @@ import {
   Check,
   CheckCheck,
   ChevronRight,
+  ChevronLeft,
   CircleHelp,
   Feather,
   History,
@@ -41,6 +42,7 @@ import {
   calculateStats,
   getCalendarEntries,
   rollingWeightAverages,
+  shiftDate,
 } from "./stats";
 import type { Entry, Settings } from "./types";
 import {
@@ -316,16 +318,35 @@ export default function App() {
                     </div>
                     <div className="date-row">
                       <label htmlFor="entry-date">Check-in date</label>
+                      <button
+                        className="date-arrow"
+                        aria-label="Previous day"
+                        onClick={() => setDate(shiftDate(date, -1))}
+                      >
+                        <ChevronLeft size={16} />
+                      </button>
                       <input
                         id="entry-date"
                         aria-label="Check-in date"
                         type="date"
                         max={today}
                         value={date}
+                        onInput={(e) => {
+                          if (e.currentTarget.value)
+                            setDate(e.currentTarget.value);
+                        }}
                         onChange={(e) => {
                           if (e.target.value) setDate(e.target.value);
                         }}
                       />
+                      <button
+                        className="date-arrow"
+                        aria-label="Next day"
+                        disabled={date >= today}
+                        onClick={() => setDate(shiftDate(date, 1))}
+                      >
+                        <ChevronRight size={16} />
+                      </button>
                       {date !== today && (
                         <button
                           className="text-button"
@@ -876,7 +897,7 @@ export default function App() {
         <footer className="page-footer">
           <Feather size={14} />
           <span>Less tracking. More awareness.</span>
-          <span className="footer-version">v1.0.0</span>
+          <span className="footer-version">v1.0.1</span>
         </footer>
       </main>
       <nav className="mobile-nav">
