@@ -111,6 +111,10 @@ export default function App() {
   }, [today]);
   const [intake, setIntake] = useState<number | null>(null);
   const [weight, setWeight] = useState("");
+  const [cardio, setCardio] = useState<boolean | null>(null);
+  const [cardioType, setCardioType] = useState("");
+  const [cardioMinutes, setCardioMinutes] = useState("");
+  const [cardioCalories, setCardioCalories] = useState("");
   const [period, setPeriod] = useState<"7" | "30" | "all">("30");
   const [busy, setBusy] = useState(false);
   const [loaded, setLoaded] = useState(false);
@@ -144,6 +148,15 @@ export default function App() {
     ...entry,
     average: averageByDate.get(entry.date) ?? null,
   }));
+  const cardioGraph = graphEntries.map((entry) => ({
+    date: entry.date,
+    minutes:
+      entry.cardio === false
+        ? 0
+        : entry.cardio === true
+          ? (entry.cardioMinutes ?? null)
+          : null,
+  }));
   const allStats = calculateStats(entries, "all", today);
   useEffect(() => {
     Promise.all([listEntries(), getSettings()])
@@ -157,6 +170,10 @@ export default function App() {
   useEffect(() => {
     setIntake(edited?.intake ?? null);
     setWeight(edited?.weight?.toString() ?? "");
+    setCardio(edited?.cardio ?? null);
+    setCardioType(edited?.cardioType ?? "");
+    setCardioMinutes(edited?.cardioMinutes?.toString() ?? "");
+    setCardioCalories(edited?.cardioCalories?.toString() ?? "");
   }, [date, entries]);
   useEffect(() => {
     const timer = setInterval(() => setToday(todayHkt()), 30000);
@@ -193,6 +210,16 @@ export default function App() {
         date,
         intake,
         weight: weight.trim() ? Number(weight) : null,
+        cardio,
+        cardioType: cardio === true ? cardioType : "",
+        cardioMinutes:
+          cardio === true && cardioMinutes.trim()
+            ? Number(cardioMinutes)
+            : null,
+        cardioCalories:
+          cardio === true && cardioCalories.trim()
+            ? Number(cardioCalories)
+            : null,
       });
       setEntries(await listEntries());
       setNotice("Check-in saved. A little reflection goes a long way.");
@@ -431,12 +458,115 @@ export default function App() {
                         <label htmlFor="weight">kg</label>
                       </div>
                       <span className="fine-print">
-                        Either field is enough for a check-in.
+                        Intake, weight, or a cardio answer is enough for a
+                        check-in.
                       </span>
+                    </div>
+                    <div className="input-section cardio-section">
+                      <div className="section-label">
+                        <span className="step-number">03</span>
+                        <h3>Did you do cardio?</h3>
+                        <span className="optional">Optional</span>
+                      </div>
+                      <p className="field-description">
+                        Record your movement, even on a rest day.
+                      </p>
+                      <div
+                        className="cardio-options"
+                        role="group"
+                        aria-label="Did you do cardio?"
+                      >
+                        {[true, false].map((answer) => (
+                          <button
+                            key={String(answer)}
+                            type="button"
+                            aria-pressed={cardio === answer}
+                            className={`secondary-button ${cardio === answer ? "selected" : ""}`}
+                            onClick={() => {
+                              const next = cardio === answer ? null : answer;
+                              setCardio(next);
+                              if (next !== true) {
+                                setCardioType("");
+                                setCardioMinutes("");
+                                setCardioCalories("");
+                              }
+                            }}
+                          >
+                            {answer ? "Yes" : "No"}
+                          </button>
+                        ))}
+                        {cardio !== null && (
+                          <button
+                            className="text-button"
+                            type="button"
+                            onClick={() => {
+                              setCardio(null);
+                              setCardioType("");
+                              setCardioMinutes("");
+                              setCardioCalories("");
+                            }}
+                          >
+                            Clear answer
+                          </button>
+                        )}
+                      </div>
+                      {cardio === true && (
+                        <div className="cardio-fields">
+                          <label htmlFor="cardio-type">
+                            Cardio type{" "}
+                            <span className="optional">Optional</span>
+                            <input
+                              id="cardio-type"
+                              type="text"
+                              maxLength={100}
+                              placeholder="e.g. Walking, cycling, running"
+                              value={cardioType}
+                              onChange={(e) => setCardioType(e.target.value)}
+                            />
+                          </label>
+                          <label htmlFor="cardio-minutes">
+                            Minutes <span className="optional">Optional</span>
+                            <input
+                              id="cardio-minutes"
+                              max="1440"
+                              type="number"
+                              inputMode="decimal"
+                              min="0"
+                              step="any"
+                              placeholder="e.g. 30"
+                              value={cardioMinutes}
+                              onChange={(e) => setCardioMinutes(e.target.value)}
+                            />
+                          </label>
+                          <label htmlFor="cardio-calories">
+                            Calories burned (kcal){" "}
+                            <span className="optional">Optional</span>
+                            <input
+                              id="cardio-calories"
+                              max="10000"
+                              type="number"
+                              inputMode="decimal"
+                              min="0"
+                              step="any"
+                              placeholder="e.g. 150"
+                              value={cardioCalories}
+                              onChange={(e) =>
+                                setCardioCalories(e.target.value)
+                              }
+                            />
+                          </label>
+                          <p className="fine-print">
+                            Enter your own estimate or a value from your watch.
+                            Calories are not calculated by this app.
+                          </p>
+                        </div>
+                      )}
                     </div>
                     <button
                       className="primary-button save-button"
-                      disabled={busy || (!intake && !weight.trim())}
+                      disabled={
+                        busy || (!intake && !weight.trim() && cardio === null)
+                      }
                       onClick={save}
                     >
                       <Check size={19} />
@@ -545,6 +675,15 @@ export default function App() {
                     ],
                     ["Average intake", number(stats.averageIntake, " / 5")],
                     ["Days logged", String(stats.loggedDays)],
+                    ["Cardio days", String(stats.cardioDays)],
+                    [
+                      "Cardio minutes",
+                      `${stats.totalCardioMinutes.toLocaleString()} min`,
+                    ],
+                    [
+                      "Calories burned",
+                      `${stats.totalCardioCalories.toLocaleString()} kcal`,
+                    ],
                   ].map(([label, value]) => (
                     <section className="card stat" key={label}>
                       <span>{label}</span>
@@ -688,6 +827,60 @@ export default function App() {
                     <Empty text="Log how much you ate to start noticing patterns." />
                   )}
                 </section>
+                <section className="card chart-card">
+                  <div className="chart-heading">
+                    <div>
+                      <h2>Cardio over time</h2>
+                      <p>Your recorded minutes of movement.</p>
+                    </div>
+                    <span className="chart-unit">min</span>
+                  </div>
+                  {cardioGraph.some((entry) => entry.minutes !== null) ? (
+                    <div className="chart">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <LineChart
+                          data={cardioGraph}
+                          margin={{ top: 12, right: 18, bottom: 4, left: -18 }}
+                        >
+                          <CartesianGrid vertical={false} stroke="#e8ede8" />
+                          <XAxis
+                            dataKey="date"
+                            tickFormatter={(d) => dateLabel(d, true)}
+                            tick={{ fontSize: 11 }}
+                            minTickGap={30}
+                            axisLine={false}
+                            tickLine={false}
+                          />
+                          <YAxis
+                            domain={[0, "auto"]}
+                            tick={{ fontSize: 11 }}
+                            axisLine={false}
+                            tickLine={false}
+                          />
+                          <Tooltip
+                            labelFormatter={(d) => dateLabel(String(d), true)}
+                            formatter={(v) => [`${v} min`, "Cardio"]}
+                          />
+                          <Line
+                            dataKey="minutes"
+                            type="linear"
+                            stroke="#2c6b50"
+                            strokeWidth={2}
+                            dot={{ r: 4, fill: "#2c6b50" }}
+                            connectNulls={false}
+                          />
+                        </LineChart>
+                      </ResponsiveContainer>
+                    </div>
+                  ) : (
+                    <Empty text="Record cardio minutes or a rest day to start your cardio trend." />
+                  )}
+                  <p className="fine-print">
+                    No cardio = 0 minutes. Missing answers or minutes leave a
+                    gap. Totals include only recorded values; calories are your
+                    manual estimates.
+                  </p>
+                </section>
               </>
             )}
             {tab === "history" && (
@@ -728,6 +921,23 @@ export default function App() {
                               : `${entry.intake} · ${levels[entry.intake - 1]}`}
                           </span>
                           <strong>{number(entry.weight, " kg")}</strong>
+                          <span className="history-cardio">
+                            {entry.cardio === true
+                              ? [
+                                  entry.cardioType || "Cardio",
+                                  entry.cardioMinutes != null
+                                    ? `${entry.cardioMinutes} min`
+                                    : null,
+                                  entry.cardioCalories != null
+                                    ? `${entry.cardioCalories} kcal`
+                                    : null,
+                                ]
+                                  .filter(Boolean)
+                                  .join(" · ")
+                              : entry.cardio === false
+                                ? "No cardio"
+                                : "Cardio not recorded"}
+                          </span>
                         </div>
                         <button
                           className="text-button"
@@ -832,7 +1042,8 @@ export default function App() {
                     </div>
                     <p>
                       Your records stay on this device. Export a backup before
-                      clearing storage or switching phones.
+                      clearing storage or switching phones. Both exports include
+                      your cardio records.
                     </p>
                     <button
                       className="secondary-button"
@@ -912,7 +1123,7 @@ export default function App() {
         <footer className="page-footer">
           <Feather size={14} />
           <span>Less tracking. More awareness.</span>
-          <span className="footer-version">v1.0.2</span>
+          <span className="footer-version">v1.1.0</span>
         </footer>
       </main>
       <nav className="mobile-nav">
@@ -1002,8 +1213,10 @@ export default function App() {
         <Modal title="Your own daily check-in" close={() => setHelp(false)}>
           <p>
             Choose a perceived intake level from 1 (very low) to 5 (very high),
-            add your weight if you like, and save. These are personal
-            impressions, not calorie estimates.
+            add your weight if you like, and record cardio with Yes or No. For
+            Yes, you can add a type, minutes, and your own burned calorie
+            estimate. Save any one of these to check in. Intake levels are
+            personal impressions, not calorie estimates.
           </p>
           <p>
             Your graphs help you reflect over time. Entries stay on this device,

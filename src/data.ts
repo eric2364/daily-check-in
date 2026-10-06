@@ -56,12 +56,70 @@ export function validateEntry(input: unknown, today = todayHkt()): Entry {
   ) {
     throw new Error("Weight must be greater than 0 and no more than 1,000 kg.");
   }
-  if (intake === null && weight === null)
-    throw new Error("Add an intake level or weight before saving.");
+  const { cardio, cardioType, cardioMinutes, cardioCalories } = candidate;
+  if (cardio !== undefined && cardio !== null && typeof cardio !== "boolean") {
+    throw new Error("Cardio must be Yes or No.");
+  }
+  if (
+    cardioType !== undefined &&
+    (typeof cardioType !== "string" || cardioType.length > 100)
+  ) {
+    throw new Error("Cardio type must be text of no more than 100 characters.");
+  }
+  for (const [label, value, maximum] of [
+    ["Cardio minutes", cardioMinutes, 1440],
+    ["Burned calories", cardioCalories, 10000],
+  ] as const) {
+    if (
+      value !== undefined &&
+      value !== null &&
+      (typeof value !== "number" ||
+        !Number.isFinite(value) ||
+        value < 0 ||
+        value > maximum)
+    ) {
+      throw new Error(
+        `${label} must be between 0 and ${maximum.toLocaleString("en-US")}.`,
+      );
+    }
+  }
+  if (
+    cardio !== true &&
+    cardio !== false &&
+    ((typeof cardioType === "string" && cardioType.trim() !== "") ||
+      cardioMinutes != null ||
+      cardioCalories != null)
+  ) {
+    throw new Error("Select Yes for cardio before adding its details.");
+  }
+  if (intake === null && weight === null && cardio !== true && cardio !== false)
+    throw new Error(
+      "Add an intake level, weight, or cardio answer before saving.",
+    );
+  // Legacy records retain their original shape; no database migration is needed.
+  const cardioFields =
+    cardio === undefined &&
+    cardioType === undefined &&
+    cardioMinutes === undefined &&
+    cardioCalories === undefined
+      ? {}
+      : {
+          cardio: cardio ?? null,
+          cardioType: cardio === true ? (cardioType ?? "").trim() : "",
+          cardioMinutes:
+            cardio === true
+              ? ((cardioMinutes as number | null | undefined) ?? null)
+              : null,
+          cardioCalories:
+            cardio === true
+              ? ((cardioCalories as number | null | undefined) ?? null)
+              : null,
+        };
   return {
     date,
     intake: intake as number | null,
     weight: weight as number | null,
+    ...cardioFields,
   };
 }
 
@@ -211,7 +269,7 @@ function validateEntries(input: unknown): Entry[] {
 export function exportJson(entries: Entry[]): string {
   return JSON.stringify(
     {
-      version: 1,
+      version: 2,
       exportedAt: new Date().toISOString(),
       entries: validateEntries(entries),
     },
@@ -230,18 +288,37 @@ export function parseJsonBackup(text: string): Entry[] {
   if (
     !backup ||
     typeof backup !== "object" ||
-    (backup as Record<string, unknown>).version !== 1
+    ![1, 2].includes((backup as Record<string, unknown>).version as number)
   ) {
     throw new Error(
-      "This backup version is not supported. Choose a Daily Check-in version 1 backup.",
+      "This backup version is not supported. Choose a Daily Check-in version 1 or 2 backup.",
     );
   }
   return validateEntries((backup as Record<string, unknown>).entries);
 }
 
+/** Quote CSV delimiters and neutralize spreadsheet formulas in user-entered text. */
+function csvText(value: string): string {
+  const safe = /^[\s]*[=+\-@]/.test(value) ? `'${value}` : value;
+  return /[",\r\n]/.test(safe) ? `"${safe.replace(/"/g, '\"\"')}"` : safe;
+}
+
 export function exportCsv(entries: Entry[]): string {
-  const rows = validateEntries(entries).map(
-    (entry) => `${entry.date},${entry.intake ?? ""},${entry.weight ?? ""}`,
+  const rows = validateEntries(entries).map((entry) =>
+    [
+      entry.date,
+      entry.intake ?? "",
+      entry.weight ?? "",
+      entry.cardio === true ? "Yes" : entry.cardio === false ? "No" : "",
+      csvText(entry.cardioType ?? ""),
+      entry.cardioMinutes ?? "",
+      entry.cardioCalories ?? "",
+    ].join(","),
   );
-  return ["date,intake_level,weight_kg", ...rows].join("\r\n") + "\r\n";
+  return (
+    [
+      "date,intake_level,weight_kg,cardio_done,cardio_type,cardio_minutes,cardio_calories",
+      ...rows,
+    ].join("\r\n") + "\r\n"
+  );
 }

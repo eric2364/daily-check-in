@@ -2,6 +2,11 @@ export interface Entry {
   date: string;
   intake: number | null;
   weight: number | null;
+  /** Absent/null means not recorded; false means an explicit No. */
+  cardio?: boolean | null;
+  cardioType?: string;
+  cardioMinutes?: number | null;
+  cardioCalories?: number | null;
 }
 
 export interface Settings {
@@ -16,6 +21,9 @@ export interface SummaryStats {
   weightChange: number | null;
   averageIntake: number | null;
   loggedDays: number;
+  cardioDays: number;
+  totalCardioMinutes: number;
+  totalCardioCalories: number;
 }
 
 export interface WeightAverage {

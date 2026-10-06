@@ -1235,3 +1235,70 @@ h1 {
 .date-row input {
   max-width: 140px;
 }
+
+.cardio-section {
+  border-top: 1px solid #e8ede8;
+}
+.cardio-options {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 16px;
+}
+.cardio-options .secondary-button {
+  width: auto;
+  min-width: 76px;
+  margin: 0;
+}
+.cardio-options .selected {
+  background: #e6f0e7;
+  border-color: #2c6b50;
+  color: #2c6b50;
+}
+.cardio-fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-top: 20px;
+}
+.cardio-fields label {
+  display: block;
+  font-size: 12px;
+  color: #526355;
+}
+.cardio-fields label:first-child,
+.cardio-fields .fine-print {
+  grid-column: 1 / -1;
+}
+.cardio-fields input {
+  width: 100%;
+  min-width: 0;
+  margin-top: 8px;
+  border: 1px solid #dce5db;
+  border-radius: 9px;
+  padding: 12px;
+  background: #fafcf9;
+  color: #344b3c;
+  font: inherit;
+  font-size: 16px;
+}
+.cardio-fields input:focus {
+  outline: 2px solid #a0b9ab;
+  outline-offset: 2px;
+}
+.history-values {
+  flex-wrap: wrap;
+  gap: 10px 16px;
+}
+.history-cardio {
+  flex-basis: 100%;
+  color: #647b6b;
+  overflow-wrap: anywhere;
+  font-size: 11px;
+}
+@media (max-width: 420px) {
+  .cardio-fields {
+    grid-template-columns: 1fr;
+  }
+}

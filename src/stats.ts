@@ -57,6 +57,17 @@ export function calculateStats(
       ? intakes.reduce((sum, entry) => sum + entry.intake!, 0) / intakes.length
       : null,
     loggedDays: selected.length,
+    cardioDays: selected.filter((entry) => entry.cardio === true).length,
+    totalCardioMinutes: selected.reduce(
+      (sum, entry) =>
+        sum + (entry.cardio === true ? (entry.cardioMinutes ?? 0) : 0),
+      0,
+    ),
+    totalCardioCalories: selected.reduce(
+      (sum, entry) =>
+        sum + (entry.cardio === true ? (entry.cardioCalories ?? 0) : 0),
+      0,
+    ),
   };
 }
 
