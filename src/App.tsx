@@ -45,6 +45,8 @@ import {
   shiftDate,
 } from "./stats";
 import type { Entry, Settings } from "./types";
+import CloudPanel from "./CloudPanel";
+import { getCloudState, initializeCloud, subscribeCloud } from "./cloud";
 import {
   disableReminders,
   enableReminders,
@@ -101,6 +103,7 @@ async function download(content: string, name: string, type: string) {
 export default function App() {
   const [tab, setTab] = useState<Tab>("today");
   const [entries, setEntries] = useState<Entry[]>([]);
+  const [journalOwner, setJournalOwner] = useState<string | null>(null);
   const [settings, setSettings] = useState<Settings>(defaultSettings);
   const [today, setToday] = useState(todayHkt());
   const previousToday = useRef(today);
@@ -136,6 +139,7 @@ export default function App() {
   }, []);
   const importInput = useRef<HTMLInputElement>(null);
   const edited = entries.find((e) => e.date === date);
+  const editedSnapshot = JSON.stringify(edited ?? null);
   const loggedToday = entries.some((e) => e.date === today);
   const stats = calculateStats(entries, period, today);
   const graphEntries = getCalendarEntries(entries, period, today);
@@ -159,13 +163,65 @@ export default function App() {
   }));
   const allStats = calculateStats(entries, "all", today);
   useEffect(() => {
-    Promise.all([listEntries(), getSettings()])
-      .then(([logs, prefs]) => {
-        setEntries(logs);
-        setSettings(prefs);
-        setLoaded(true);
-      })
-      .catch((e) => setError(e.message));
+    let alive = true;
+    let generation = 0;
+    let scope = getCloudState().user?.id ?? null;
+    let revision = -1;
+    const refresh = async () => {
+      const state = getCloudState();
+      const nextScope = state.user?.id ?? null;
+      if (nextScope !== scope) {
+        scope = nextScope;
+        setJournalOwner(nextScope);
+        setEntries([]);
+        setPending(null);
+        setRemove(null);
+        setIntake(null);
+        setWeight("");
+        setCardio(null);
+        setCardioType("");
+        setCardioMinutes("");
+        setCardioCalories("");
+        setError("");
+        setLoaded(false);
+      }
+      if (revision === state.revision) return;
+      revision = state.revision;
+      const currentGeneration = ++generation;
+      try {
+        const [logs, prefs] = await Promise.all([listEntries(), getSettings()]);
+        if (alive && currentGeneration === generation) {
+          setEntries(logs);
+          setSettings(prefs);
+          setLoaded(true);
+        }
+      } catch (reason) {
+        if (alive && currentGeneration === generation)
+          setError(
+            reason instanceof Error
+              ? reason.message
+              : "Could not open your journal.",
+          );
+      }
+    };
+    const unsubscribe = subscribeCloud(() => {
+      void refresh();
+    });
+    initializeCloud()
+      .then(() => refresh())
+      .catch((reason) => {
+        if (alive)
+          setError(
+            reason instanceof Error
+              ? reason.message
+              : "Could not check your account.",
+          );
+      });
+    return () => {
+      alive = false;
+      generation += 1;
+      unsubscribe();
+    };
   }, []);
   useEffect(() => {
     setIntake(edited?.intake ?? null);
@@ -174,7 +230,7 @@ export default function App() {
     setCardioType(edited?.cardioType ?? "");
     setCardioMinutes(edited?.cardioMinutes?.toString() ?? "");
     setCardioCalories(edited?.cardioCalories?.toString() ?? "");
-  }, [date, entries]);
+  }, [date, editedSnapshot, journalOwner]);
   useEffect(() => {
     const timer = setInterval(() => setToday(todayHkt()), 30000);
     const onFocus = () => setToday(todayHkt());
@@ -221,7 +277,6 @@ export default function App() {
             ? Number(cardioCalories)
             : null,
       });
-      setEntries(await listEntries());
       setNotice("Check-in saved. A little reflection goes a long way.");
     });
   }
@@ -968,6 +1023,7 @@ export default function App() {
                   <p>Gentle reminders. A safe copy of your journal.</p>
                 </div>
                 <div className="settings-grid">
+                  <CloudPanel />
                   <section className="card settings-card">
                     <div className="mini-heading">
                       <Bell size={20} />
@@ -1041,9 +1097,10 @@ export default function App() {
                       <h2>Keep a safe copy</h2>
                     </div>
                     <p>
-                      Your records stay on this device. Export a backup before
-                      clearing storage or switching phones. Both exports include
-                      your cardio records.
+                      Export a backup before clearing storage or switching
+                      phones. Device-only entries stay here; signed-in account
+                      entries also sync to the cloud. Both exports include your
+                      cardio records.
                     </p>
                     <button
                       className="secondary-button"
@@ -1094,7 +1151,8 @@ export default function App() {
                       }}
                     />
                     <p className="fine-print">
-                      No account. No health data sent to the reminder service.
+                      Backup exports include the journal you are currently
+                      viewing. Reminders use a separate notification service.
                     </p>
                   </section>
                   <section className="card settings-card install-card">
@@ -1123,7 +1181,7 @@ export default function App() {
         <footer className="page-footer">
           <Feather size={14} />
           <span>Less tracking. More awareness.</span>
-          <span className="footer-version">v1.1.0</span>
+          <span className="footer-version">v1.2.0</span>
         </footer>
       </main>
       <nav className="mobile-nav">
@@ -1166,7 +1224,6 @@ export default function App() {
               onClick={() =>
                 run(async () => {
                   await importEntries(pending);
-                  setEntries(await listEntries());
                   setPending(null);
                   setNotice("Your backup has been restored.");
                 })
@@ -1198,7 +1255,6 @@ export default function App() {
               onClick={() =>
                 run(async () => {
                   await deleteEntry(remove.date);
-                  setEntries(await listEntries());
                   setRemove(null);
                   setNotice("Check-in deleted.");
                 })
@@ -1219,8 +1275,9 @@ export default function App() {
             personal impressions, not calorie estimates.
           </p>
           <p>
-            Your graphs help you reflect over time. Entries stay on this device,
-            so export a backup from Settings occasionally.
+            Your graphs help you reflect over time. Entries stay on this device
+            unless you choose a cloud account in Settings. Account entries sync
+            across devices when online. Export a backup occasionally.
           </p>
           <button className="primary-button" onClick={() => setHelp(false)}>
             Got it

@@ -1,9 +1,8 @@
-import { createClient } from "@supabase/supabase-js";
+import { supabase as client } from "./supabaseClient";
 const url = import.meta.env.VITE_SUPABASE_URL;
 const key = import.meta.env.VITE_SUPABASE_ANON_KEY;
 const vapid = import.meta.env.VITE_VAPID_PUBLIC_KEY;
 export const remindersConfigured = Boolean(url && key && vapid);
-const client = url && key ? createClient(url, key) : null;
 function applicationServerKey(value: string): Uint8Array<ArrayBuffer> {
   const raw = atob(
     value

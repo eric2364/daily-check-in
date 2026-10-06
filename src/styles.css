@@ -1302,3 +1302,84 @@ h1 {
     grid-template-columns: 1fr;
   }
 }
+
+.cloud-panel {
+  grid-column: 1 / -1;
+}
+.cloud-auth-form {
+  display: grid;
+  gap: 14px;
+  max-width: 430px;
+}
+.cloud-auth-form label {
+  color: #526355;
+  font-size: 12px;
+}
+.cloud-auth-form input {
+  display: block;
+  width: 100%;
+  margin-top: 7px;
+  padding: 12px;
+  border: 1px solid #dce5db;
+  border-radius: 9px;
+  background: #fafcf9;
+  color: #344b3c;
+  font: inherit;
+  font-size: 16px;
+}
+.cloud-auth-form input:focus {
+  outline: 2px solid #a0b9ab;
+  outline-offset: 2px;
+}
+.cloud-actions {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin: 16px 0;
+}
+.cloud-actions .secondary-button {
+  width: auto;
+  margin: 0;
+}
+.cloud-status {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  color: #647b6b;
+  font-size: 12px;
+  margin: 14px 0;
+}
+.cloud-conflict,
+.cloud-confirm {
+  border: 1px solid #dce5db;
+  border-radius: 9px;
+  padding: 16px;
+  margin-top: 14px;
+  font-size: 12px;
+  line-height: 1.7;
+}
+.cloud-conflict h3 {
+  margin: 0 0 8px;
+}
+.cloud-conflict-values {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  overflow-wrap: anywhere;
+}
+.cloud-message {
+  font-size: 12px;
+  line-height: 1.7;
+  margin: 12px 0;
+  color: #526355;
+}
+.cloud-message.error {
+  color: #9c4444;
+}
+@media (max-width: 500px) {
+  .cloud-conflict-values {
+    grid-template-columns: 1fr;
+  }
+}

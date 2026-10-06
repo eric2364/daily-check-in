@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.2.0 — 2026-10-06
+
+Added email/password login, email confirmation and password recovery, separate guest/account journals, and offline-first Supabase sync. Pending changes persist locally; revision conflicts require an explicit choice. Existing guest data is copied only on confirmation. Database access rules isolate accounts, and sync retries and deletion tombstones prevent accidental overwrite or resurrection. Updated the guide for cloud storage and backups.
+
 ## 1.1.0 — 2026-10-06
 
 Added optional daily cardio Yes/No, activity type, minutes, and manually entered calories burned; cardio history, period totals, and a minutes graph. CSV exports include cardio and safely quote free text. Version 2 JSON backups preserve cardio while accepting existing version 1 backups and local entries. Included a beginner PDF guide to installation, local storage, offline use, and future personal web apps.

@@ -1,7 +1,16 @@
 import type { Entry, Settings } from "./types";
 
 const DATABASE_NAME = "daily-check-in";
-const DATABASE_VERSION = 1;
+const DATABASE_VERSION = 2;
+let activeOwner: string | null = null;
+const listeners = new Set<() => void>();
+export function setActiveOwner(owner: string | null) { activeOwner = owner; listeners.forEach(fn => fn()); }
+export function getActiveOwner() { return activeOwner; }
+export function subscribeData(fn: () => void) { listeners.add(fn); return () => { listeners.delete(fn); }; }
+function changed() { listeners.forEach(fn => fn()); }
+export interface CloudRecord { owner: string; date: string; entry: Entry | null; revision: string | null; pending?: { date: string; entry: Entry | null; base_revision: string | null; mutation_id: string }; conflict?: { entry: Entry | null; revision: string | null }; }
+export interface RemoteRecord { date: string; entry: Entry | null; revision: string | null; }
+
 export const DEFAULT_SETTINGS: Settings = {
   reminderEnabled: false,
   reminderTime: "09:00",
@@ -150,6 +159,7 @@ function database(): Promise<IDBDatabase> {
       const request = indexedDB.open(DATABASE_NAME, DATABASE_VERSION);
       request.onupgradeneeded = () => {
         const db = request.result;
+        if (!db.objectStoreNames.contains("cloudEntries")) db.createObjectStore("cloudEntries", { keyPath: ["owner", "date"] });
         if (!db.objectStoreNames.contains("entries"))
           db.createObjectStore("entries", { keyPath: "date" });
         if (!db.objectStoreNames.contains("settings"))
@@ -207,23 +217,67 @@ async function write(
   });
 }
 
+export async function cloudRecords(owner: string): Promise<CloudRecord[]> {
+  return (await read<CloudRecord[]>("cloudEntries")).filter(row => row.owner === owner);
+}
+export async function guestEntries(): Promise<Entry[]> { return read<Entry[]>("entries"); }
 export async function listEntries(): Promise<Entry[]> {
-  return (await read<Entry[]>("entries")).sort((a, b) =>
-    a.date.localeCompare(b.date),
-  );
+  const owner = activeOwner;
+  const entries = owner ? (await cloudRecords(owner)).flatMap(row => row.entry ? [row.entry] : []) : await guestEntries();
+  return entries.sort((a, b) => a.date.localeCompare(b.date));
 }
-
-export async function saveEntry(entry: Entry): Promise<void> {
-  const valid = validateEntry(entry);
-  await write("entries", (store) => {
-    store.put(valid);
-  });
+async function mutate(entries: {date:string;entry:Entry|null}[]): Promise<void> {
+  const owner = activeOwner;
+  if (!owner) { await write("entries", store => entries.forEach(row => row.entry ? store.put(row.entry) : store.delete(row.date))); }
+  else await write("cloudEntries", store => entries.forEach(row => {
+    const req = store.get([owner, row.date]);
+    req.onsuccess = () => {
+      const old = req.result as CloudRecord | undefined;
+      store.put({ owner, date: row.date, entry: row.entry, revision: old?.revision ?? null,
+        pending: {date:row.date,entry:row.entry,base_revision:old?.revision ?? null,mutation_id:crypto.randomUUID()}, conflict: old?.conflict });
+    };
+  }));
+  changed();
 }
-
-export async function deleteEntry(date: string): Promise<void> {
-  await write("entries", (store) => {
-    store.delete(date);
+export async function saveEntry(entry: Entry): Promise<void> { const valid=validateEntry(entry); await mutate([{date:valid.date,entry:valid}]); }
+export async function deleteEntry(date: string): Promise<void> { await mutate([{date,entry:null}]); }
+/** Apply only the exact mutation that was sent. Writes made during sync remain pending. */
+export async function applyCloudResult(owner: string, sent: CloudRecord[], rows: RemoteRecord[], acknowledged: string[], conflicts: string[]) {
+  const ack = new Set(acknowledged), conflict = new Set(conflicts);
+  await write("cloudEntries", store => rows.forEach(remote => {
+    const entry = remote.entry === null ? null : validateEntry(remote.entry);
+    const req = store.get([owner, remote.date]);
+    req.onsuccess = () => {
+      const current = req.result as CloudRecord | undefined;
+      const original = sent.find(row => row.date === remote.date)?.pending;
+      const succeeded = original && ack.has(original.mutation_id);
+      if (current?.pending) {
+        if (succeeded && current.pending.mutation_id === original.mutation_id) {
+          store.put({owner,date:remote.date,entry,revision:remote.revision});
+        } else if (succeeded) {
+          // A newer local edit inherits the successful mutation's revision, not
+          // an unrelated newer remote revision (which must surface a conflict).
+          store.put({...current,revision:original.mutation_id,pending:{...current.pending,base_revision:original.mutation_id}});
+        } else if (conflict.has(remote.date)) {
+          store.put({...current,conflict:{entry,revision:remote.revision}});
+        }
+      } else store.put({owner,date:remote.date,entry,revision:remote.revision});
+    };
+  }));
+  changed();
+}
+export async function resolveCloudConflict(owner:string,date:string, choice:"local"|"cloud") {
+  await write("cloudEntries", store => {
+    const req=store.get([owner,date]);
+    req.onsuccess=()=>{
+      const row=req.result as CloudRecord | undefined;
+      if (!row?.conflict) return;
+      const {conflict}=row;
+      if(choice === "cloud") store.put({owner,date,entry:conflict.entry,revision:conflict.revision});
+      else store.put({owner,date,entry:row.entry,revision:conflict.revision,pending:{date,entry:row.entry,base_revision:conflict.revision,mutation_id:crypto.randomUUID()}});
+    };
   });
+  changed();
 }
 
 export async function getSettings(): Promise<Settings> {
@@ -244,9 +298,7 @@ export async function saveSettings(settings: Settings): Promise<void> {
 /** Merge a validated backup atomically. Incoming dates replace existing matching dates. */
 export async function importEntries(entries: Entry[]): Promise<void> {
   const valid = validateEntries(entries);
-  await write("entries", (store) => {
-    valid.forEach((entry) => store.put(entry));
-  });
+  await mutate(valid.map(entry => ({date:entry.date,entry})));
 }
 
 function validateEntries(input: unknown): Entry[] {
